@@ -1,15 +1,14 @@
 import Image from "next/image"
 import { Play, Calendar } from "lucide-react"
-import { videos } from "@/lib/mock-data"
+import { listVideos } from "@/lib/cms"
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString("es-CL", { day: "numeric", month: "long", year: "numeric" })
 }
 
-const categorias = ["Todos", ...Array.from(new Set(videos.map(v => v.categoria)))]
-
-export default function VideosPage() {
-  const publicados = videos.filter(v => v.publicado)
+export default async function VideosPage() {
+  const publicados = await listVideos().catch(() => [])
+  const categorias = ["Todos", ...Array.from(new Set(publicados.map(v => v.categoria)))]
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -76,6 +75,7 @@ export default function VideosPage() {
 
       {/* Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        {publicados.length === 0 && <p className="text-gray-400 text-sm">No hay videos publicados por ahora.</p>}
         {publicados.slice(1).map(video => (
           <a
             key={video.id}

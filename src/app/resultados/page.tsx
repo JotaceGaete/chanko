@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { Users, ThumbsUp, ThumbsDown, HelpCircle, ChevronRight, MessageSquare } from "lucide-react"
-import { estadisticas } from "@/lib/mock-data"
+import { getEstadisticas } from "@/lib/cms"
 import ResultadosCharts from "./ResultadosCharts"
 
 function formatDate(dateStr: string) {
@@ -19,12 +19,15 @@ const posicionColor: Record<string, string> = {
   necesito_info: "bg-amber-100 text-amber-700",
 }
 
-export default function ResultadosPage() {
+export default async function ResultadosPage() {
+  const estadisticas = await getEstadisticas().catch(() => ({
+    total: 0, apoyo: 0, noApoyo: 0, necesitaInfo: 0, porComuna: [], porFecha: [], comentariosAprobados: [],
+  }))
   const { total, apoyo, noApoyo, necesitaInfo, porComuna, porFecha, comentariosAprobados } = estadisticas
 
-  const pctApoyo = Math.round((apoyo / total) * 100)
-  const pctNoApoyo = Math.round((noApoyo / total) * 100)
-  const pctNecesitaInfo = 100 - pctApoyo - pctNoApoyo
+  const pctApoyo = total ? Math.round((apoyo / total) * 100) : 0
+  const pctNoApoyo = total ? Math.round((noApoyo / total) * 100) : 0
+  const pctNecesitaInfo = total ? 100 - pctApoyo - pctNoApoyo : 0
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">

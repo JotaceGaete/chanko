@@ -1,7 +1,7 @@
 import Link from "next/link"
 import Image from "next/image"
 import { Calendar, MapPin, Video, Users, ExternalLink } from "lucide-react"
-import { eventos } from "@/lib/mock-data"
+import { listEventos } from "@/lib/cms"
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString("es-CL", {
@@ -11,18 +11,20 @@ function formatDate(dateStr: string) {
 
 const tipoLabel: Record<string, string> = {
   presencial: "Presencial",
+  online: "Online",
   virtual: "Online",
   hibrido: "Híbrido",
 }
 
 const tipoBadge: Record<string, string> = {
   presencial: "badge-verde",
+  online: "badge-tierra",
   virtual: "badge-tierra",
   hibrido: "badge-gray",
 }
 
-export default function EventosPage() {
-  const publicados = eventos.filter(e => e.publicado)
+export default async function EventosPage() {
+  const publicados = await listEventos().catch(() => [])
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -48,6 +50,7 @@ export default function EventosPage() {
       </div>
 
       <div className="space-y-6">
+        {publicados.length === 0 && <p className="text-gray-400 text-sm">No hay eventos publicados por ahora.</p>}
         {publicados.map(evento => {
           const fechaObj = new Date(evento.fecha)
           const dia = fechaObj.getDate()
@@ -94,7 +97,7 @@ export default function EventosPage() {
                     <span>{formatDate(evento.fecha)} · {evento.hora} hrs.</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    {evento.tipo === "virtual" ? <Video className="w-4 h-4 text-verde-600 flex-shrink-0" /> : <MapPin className="w-4 h-4 text-verde-600 flex-shrink-0" />}
+                    {evento.tipo === "online" || evento.tipo === "virtual" ? <Video className="w-4 h-4 text-verde-600 flex-shrink-0" /> : <MapPin className="w-4 h-4 text-verde-600 flex-shrink-0" />}
                     <span>{evento.lugar} · {evento.region}</span>
                   </div>
                 </div>

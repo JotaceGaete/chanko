@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation"
+import type { Metadata } from "next"
 import Link from "next/link"
 import Image from "next/image"
 import { ArrowLeft, Calendar, User, Share2, ChevronRight } from "lucide-react"
-import { noticias } from "@/lib/mock-data"
+import { getNoticia, listNoticias } from "@/lib/cms"
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString("es-CL", {
@@ -10,15 +11,36 @@ function formatDate(dateStr: string) {
   })
 }
 
-export function generateStaticParams() {
-  return noticias.map(n => ({ slug: n.slug }))
+export async function generateStaticParams() {
+  return []
 }
 
-export default function NoticiaPage({ params }: { params: { slug: string } }) {
-  const noticia = noticias.find(n => n.slug === params.slug)
+export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
+  const noticia = await getNoticia(params.slug).catch(() => null)
+  if (!noticia) return {}
+  return {
+    title: `${noticia.titulo} | ChankoCiudadano`,
+    description: noticia.resumen,
+    openGraph: {
+      title: noticia.titulo,
+      description: noticia.resumen,
+      type: "article",
+      images: [{ url: noticia.imagen, width: 1200, height: 630 }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: noticia.titulo,
+      description: noticia.resumen,
+      images: [noticia.imagen],
+    },
+  }
+}
+
+export default async function NoticiaPage({ params }: { params: { slug: string } }) {
+  const noticia = await getNoticia(params.slug).catch(() => null)
   if (!noticia) notFound()
 
-  const relacionadas = noticias.filter(n => n.id !== noticia.id && n.publicada).slice(0, 3)
+  const relacionadas = (await listNoticias().catch(() => [])).filter(n => n.id !== noticia.id).slice(0, 3)
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">

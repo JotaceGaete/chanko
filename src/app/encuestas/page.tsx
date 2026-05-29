@@ -1,13 +1,13 @@
 import Link from "next/link"
 import { Calendar, ChevronRight, CheckCircle, Clock } from "lucide-react"
-import { encuestas } from "@/lib/mock-data"
+import { listEncuestas } from "@/lib/cms"
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString("es-CL", { day: "numeric", month: "long", year: "numeric" })
 }
 
-export default function EncuestasPage() {
-  const activas = encuestas.filter(e => e.activa)
+export default async function EncuestasPage() {
+  const activas = await listEncuestas().catch(() => [])
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">

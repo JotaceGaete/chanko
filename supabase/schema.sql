@@ -16,14 +16,19 @@ CREATE TABLE noticias (
   titulo TEXT NOT NULL,
   resumen TEXT NOT NULL,
   contenido TEXT NOT NULL,
+  bloques JSONB NOT NULL DEFAULT '[]'::jsonb,
   imagen_url TEXT,
   fecha DATE NOT NULL DEFAULT CURRENT_DATE,
   categoria TEXT NOT NULL,
   autor TEXT NOT NULL,
   publicada BOOLEAN DEFAULT FALSE,
+  archived_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE noticias ADD COLUMN IF NOT EXISTS bloques JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE noticias ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
 
 -- ============================================================
 -- EVENTOS
@@ -41,6 +46,7 @@ CREATE TABLE eventos (
   tipo TEXT NOT NULL CHECK (tipo IN ('presencial', 'virtual', 'hibrido')),
   inscripcion_url TEXT,
   publicado BOOLEAN DEFAULT FALSE,
+  archived_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -57,9 +63,35 @@ CREATE TABLE videos (
   fecha DATE NOT NULL DEFAULT CURRENT_DATE,
   categoria TEXT NOT NULL,
   publicado BOOLEAN DEFAULT FALSE,
+  archived_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE videos ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
+ALTER TABLE eventos ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
+
+-- ============================================================
+-- PORTADA
+-- ============================================================
+CREATE TABLE portada_config (
+  id TEXT PRIMARY KEY DEFAULT 'home',
+  noticia_id UUID REFERENCES noticias(id) ON DELETE SET NULL,
+  evento_id UUID REFERENCES eventos(id) ON DELETE SET NULL,
+  video_id UUID REFERENCES videos(id) ON DELETE SET NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+INSERT INTO portada_config (id)
+VALUES ('home')
+ON CONFLICT (id) DO NOTHING;
+
+-- Bucket publico para imagenes CMS. Crear tambien desde Dashboard si Storage no esta disponible en SQL.
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('cms', 'cms', TRUE, 5242880, ARRAY['image/jpeg', 'image/png', 'image/webp'])
+ON CONFLICT (id) DO UPDATE SET
+  public = EXCLUDED.public,
+  file_size_limit = EXCLUDED.file_size_limit,
+  allowed_mime_types = EXCLUDED.allowed_mime_types;
 
 -- ============================================================
 -- ENCUESTAS
@@ -72,9 +104,11 @@ CREATE TABLE encuestas (
   fecha_inicio DATE NOT NULL,
   fecha_fin DATE NOT NULL,
   activa BOOLEAN DEFAULT TRUE,
+  archived_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE encuestas ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
 
 CREATE TABLE preguntas_encuesta (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
@@ -134,33 +168,84 @@ ALTER TABLE encuestas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE preguntas_encuesta ENABLE ROW LEVEL SECURITY;
 ALTER TABLE respuestas_encuesta ENABLE ROW LEVEL SECURITY;
 ALTER TABLE participaciones ENABLE ROW LEVEL SECURITY;
+ALTER TABLE portada_config ENABLE ROW LEVEL SECURITY;
+ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
 
 -- Políticas públicas (lectura de contenido publicado)
 CREATE POLICY "noticias_publicas" ON noticias
   FOR SELECT TO anon, authenticated
-  USING (publicada = TRUE);
+  USING (publicada = TRUE AND archived_at IS NULL);
 
 CREATE POLICY "eventos_publicos" ON eventos
   FOR SELECT TO anon, authenticated
-  USING (publicado = TRUE);
+  USING (publicado = TRUE AND archived_at IS NULL);
 
 CREATE POLICY "videos_publicos" ON videos
   FOR SELECT TO anon, authenticated
-  USING (publicado = TRUE);
+  USING (publicado = TRUE AND archived_at IS NULL);
 
 CREATE POLICY "encuestas_publicas" ON encuestas
   FOR SELECT TO anon, authenticated
-  USING (activa = TRUE);
+  USING (activa = TRUE AND archived_at IS NULL);
 
 CREATE POLICY "preguntas_publicas" ON preguntas_encuesta
   FOR SELECT TO anon, authenticated
   USING (TRUE);
 
+CREATE POLICY "portada_publica" ON portada_config
+  FOR SELECT TO anon, authenticated
+  USING (TRUE);
+
+CREATE POLICY "storage_cms_public_read" ON storage.objects
+  FOR SELECT TO anon, authenticated
+  USING (bucket_id = 'cms');
+
+CREATE POLICY "storage_cms_admin_all" ON storage.objects
+  FOR ALL TO authenticated
+  USING (bucket_id = 'cms' AND (auth.jwt() -> 'app_metadata' ->> 'role') = 'admin')
+  WITH CHECK (bucket_id = 'cms' AND (auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
+
+-- Políticas admin: asignar app_metadata.role = 'admin' al usuario Supabase Auth.
+CREATE POLICY "noticias_admin_all" ON noticias
+  FOR ALL TO authenticated
+  USING ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin')
+  WITH CHECK ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
+
+CREATE POLICY "eventos_admin_all" ON eventos
+  FOR ALL TO authenticated
+  USING ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin')
+  WITH CHECK ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
+
+CREATE POLICY "videos_admin_all" ON videos
+  FOR ALL TO authenticated
+  USING ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin')
+  WITH CHECK ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
+
+CREATE POLICY "encuestas_admin_all" ON encuestas
+  FOR ALL TO authenticated
+  USING ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin')
+  WITH CHECK ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
+
+CREATE POLICY "preguntas_admin_all" ON preguntas_encuesta
+  FOR ALL TO authenticated
+  USING ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin')
+  WITH CHECK ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
+
+CREATE POLICY "respuestas_admin_select" ON respuestas_encuesta
+  FOR SELECT TO authenticated
+  USING ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
+
+CREATE POLICY "portada_admin_all" ON portada_config
+  FOR ALL TO authenticated
+  USING ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin')
+  WITH CHECK ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
+
 -- Participaciones: solo se exponen datos NO sensibles al público
 -- (usar una vista para esto, ver más abajo)
 CREATE POLICY "participaciones_solo_admin" ON participaciones
   FOR ALL TO authenticated
-  USING (auth.role() = 'authenticated');  -- ajustar a rol de admin real
+  USING ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin')
+  WITH CHECK ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
 
 -- Inserción de participaciones: permitida a anónimos
 CREATE POLICY "participaciones_insert_anonimo" ON participaciones
@@ -267,6 +352,7 @@ CREATE TRIGGER noticias_updated_at BEFORE UPDATE ON noticias FOR EACH ROW EXECUT
 CREATE TRIGGER eventos_updated_at BEFORE UPDATE ON eventos FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 CREATE TRIGGER videos_updated_at BEFORE UPDATE ON videos FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 CREATE TRIGGER encuestas_updated_at BEFORE UPDATE ON encuestas FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+CREATE TRIGGER portada_config_updated_at BEFORE UPDATE ON portada_config FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 -- ============================================================
 -- NOTAS DE PRIVACIDAD Y SEGURIDAD

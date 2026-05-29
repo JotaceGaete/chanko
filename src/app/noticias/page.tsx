@@ -1,7 +1,7 @@
 import Link from "next/link"
 import Image from "next/image"
 import { ArrowRight, Calendar, User } from "lucide-react"
-import { noticias } from "@/lib/mock-data"
+import { listNoticias } from "@/lib/cms"
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString("es-CL", {
@@ -9,10 +9,9 @@ function formatDate(dateStr: string) {
   })
 }
 
-const categorias = ["Todas", ...Array.from(new Set(noticias.map(n => n.categoria)))]
-
-export default function NoticiasPage() {
-  const publicadas = noticias.filter(n => n.publicada)
+export default async function NoticiasPage() {
+  const publicadas = await listNoticias().catch(() => [])
+  const categorias = ["Todas", ...Array.from(new Set(publicadas.map(n => n.categoria)))]
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -66,6 +65,9 @@ export default function NoticiasPage() {
 
       {/* Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {publicadas.length === 0 && (
+          <p className="text-gray-400 text-sm">No hay noticias publicadas por ahora.</p>
+        )}
         {publicadas.slice(1).map(noticia => (
           <Link key={noticia.id} href={`/noticias/${noticia.slug}`} className="card group">
             <div className="relative h-48 overflow-hidden">

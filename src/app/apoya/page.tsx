@@ -4,6 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { ThumbsUp, ThumbsDown, HelpCircle, ChevronRight, CheckCircle, Lock, Eye, EyeOff, AlertCircle } from "lucide-react"
 import { comunasChile } from "@/lib/mock-data"
+import Turnstile from "@/components/Turnstile"
 
 type Posicion = "apoyo" | "no_apoyo" | "necesito_info"
 
@@ -41,6 +42,8 @@ export default function ApoyaPage() {
   const [posicion, setPosicion] = useState<Posicion | null>(null)
   const [step, setStep] = useState<"posicion" | "datos" | "exito">("posicion")
   const [loading, setLoading] = useState(false)
+  const [submitError, setSubmitError] = useState("")
+  const [turnstileToken, setTurnstileToken] = useState("")
 
   const [form, setForm] = useState({
     nombre: "",
@@ -65,7 +68,7 @@ export default function ApoyaPage() {
     window.scrollTo({ top: 0, behavior: "smooth" })
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const errs = validate()
     if (Object.keys(errs).length > 0) {
@@ -73,11 +76,22 @@ export default function ApoyaPage() {
       return
     }
     setLoading(true)
-    setTimeout(() => {
-      setLoading(false)
+    setSubmitError("")
+    try {
+      const res = await fetch("/api/participaciones", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ posicion, ...form, turnstileToken }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
       setStep("exito")
       window.scrollTo({ top: 0, behavior: "smooth" })
-    }, 1200)
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "No pudimos registrar tu participacion. Intentalo nuevamente.")
+    } finally {
+      setLoading(false)
+    }
   }
 
   const opcionSeleccionada = opciones.find(o => o.id === posicion)
@@ -316,6 +330,10 @@ export default function ApoyaPage() {
             </ul>
           </div>
 
+          <div className="mt-6">
+            <Turnstile onVerify={setTurnstileToken} />
+          </div>
+
           <button
             type="submit"
             disabled={loading}
@@ -336,6 +354,7 @@ export default function ApoyaPage() {
               </>
             )}
           </button>
+          {submitError && <p className="text-center text-sm text-red-600 mt-3">{submitError}</p>}
 
           <p className="text-center text-xs text-gray-400 mt-4">
             Al enviar, aceptas el uso de tus datos según lo indicado en la política de privacidad.

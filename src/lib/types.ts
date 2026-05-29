@@ -4,6 +4,7 @@ export interface Noticia {
   titulo: string
   resumen: string
   contenido: string
+  bloques?: unknown[]
   imagen: string
   fecha: string
   categoria: string
@@ -21,7 +22,7 @@ export interface Evento {
   hora: string
   lugar: string
   region: string
-  tipo: "presencial" | "virtual" | "hibrido"
+  tipo: "presencial" | "online" | "virtual" | "hibrido"
   inscripcionUrl?: string
   publicado: boolean
 }

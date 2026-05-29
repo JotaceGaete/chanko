@@ -19,12 +19,6 @@ const COLORS = {
   necesitaInfo: "#d97706",
 }
 
-const mesLabel: Record<string, string> = {
-  "2024-03": "Mar",
-  "2024-04": "Abr",
-  "2024-05": "May",
-}
-
 export default function ResultadosCharts({ pctApoyo, pctNoApoyo, pctNecesitaInfo, porComuna, porFecha }: Props) {
   const pieData = [
     { name: "Apoya", value: pctApoyo, color: COLORS.apoyo },
@@ -34,7 +28,7 @@ export default function ResultadosCharts({ pctApoyo, pctNoApoyo, pctNecesitaInfo
 
   const fechaData = porFecha.map(f => ({
     ...f,
-    label: mesLabel[f.fecha] || f.fecha,
+    label: new Date(f.fecha).toLocaleDateString("es-CL", { month: "short" }),
     "No apoya": f.total - f.apoyo,
   }))
 

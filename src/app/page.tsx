@@ -1,7 +1,7 @@
 import Link from "next/link"
 import Image from "next/image"
 import { ArrowRight, Users, ThumbsUp, MapPin, Calendar, Play, ChevronRight, Leaf, Shield, BarChart3 } from "lucide-react"
-import { noticias, eventos, videos, estadisticas } from "@/lib/mock-data"
+import { getEstadisticas, getPortadaConfig, listEventos, listNoticias, listVideos } from "@/lib/cms"
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString("es-CL", {
@@ -11,11 +11,19 @@ function formatDate(dateStr: string) {
   })
 }
 
-export default function Home() {
-  const pctApoyo = Math.round((estadisticas.apoyo / estadisticas.total) * 100)
-  const featuredNoticias = noticias.slice(0, 3)
-  const upcomingEventos = eventos.slice(0, 2)
-  const featuredVideos = videos.slice(0, 3)
+export default async function Home() {
+  const [noticias, eventos, videos, estadisticas, portada] = await Promise.all([
+    listNoticias().catch(() => []),
+    listEventos().catch(() => []),
+    listVideos().catch(() => []),
+    getEstadisticas().catch(() => ({ total: 0, apoyo: 0, noApoyo: 0, necesitaInfo: 0, porComuna: [], porFecha: [], comentariosAprobados: [] })),
+    getPortadaConfig().catch(() => ({ noticia_id: "", evento_id: "", video_id: "" })),
+  ])
+  const promote = <T extends { id: string }>(items: T[], id?: string) => id ? [...items].sort((a, b) => (a.id === id ? -1 : b.id === id ? 1 : 0)) : items
+  const featuredNoticias = promote(noticias, portada.noticia_id).slice(0, 3)
+  const upcomingEventos = promote(eventos, portada.evento_id).slice(0, 2)
+  const featuredVideos = promote(videos, portada.video_id).slice(0, 3)
+  const pctApoyo = estadisticas.total ? Math.round((estadisticas.apoyo / estadisticas.total) * 100) : 0
 
   return (
     <div>
@@ -182,8 +190,8 @@ export default function Home() {
                 </div>
                 <div className="p-5 flex flex-col justify-between flex-1">
                   <div>
-                    <span className={`badge mb-2 inline-block ${evento.tipo === "virtual" ? "badge-gray" : "badge-verde"}`}>
-                      {evento.tipo === "presencial" ? "Presencial" : evento.tipo === "virtual" ? "Online" : "Híbrido"}
+                    <span className={`badge mb-2 inline-block ${evento.tipo === "online" || evento.tipo === "virtual" ? "badge-gray" : "badge-verde"}`}>
+                      {evento.tipo === "presencial" ? "Presencial" : evento.tipo === "online" || evento.tipo === "virtual" ? "Online" : "Hibrido"}
                     </span>
                     <h3 className="font-bold text-gray-900 leading-snug mb-2 line-clamp-2">{evento.titulo}</h3>
                   </div>
